@@ -1,0 +1,24 @@
+@startuml 3.1.3
+actor Operator as Op
+participant "MES UI" as UI
+participant "MES API" as API
+database "MES DB" as DB
+participant "Redis Cache" as Cache
+queue "RabbitMQ" as MQ
+
+Op -> UI: POST /orders/12345/status\nMANUFACTURING_STARTED
+UI -> API: POST /api/orders/12345/status\nMANUFACTURING_STARTED
+
+API -> DB: UPDATE orders\nSET status='MANUFACTURING_STARTED'\nWHERE id=12345
+DB --> API: OK
+
+API -> Cache: DEL orders:PRICE_CALCULATED:*
+API -> Cache: DEL orders:MANUFACTURING_STARTED:*
+API -> Cache: DEL orders:new:*
+
+API -> MQ: publish order_status_changed\n{order_id=12345,\nstatus_to=MANUFACTURING_STARTED}
+MQ --> API: ACK
+
+API --> UI: 200 OK
+UI --> Op: Статус обновлён
+@enduml

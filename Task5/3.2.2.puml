@@ -1,0 +1,36 @@
+@startuml 3.2.2
+actor Operator as Op
+participant "MES UI" as UI
+participant "MES API" as API
+participant "Refresh Job" as Job
+participant "Redis Cache" as Cache
+database "MES DB" as DB
+
+== Фоновое обновление кеша (Refresh-Ahead) ==
+Job -> Cache: TTL orders:new:page:1 ?
+alt TTL < 15 секунд
+    Job -> DB: SELECT * FROM orders\nWHERE status IN (...)\nORDER BY created_at\nLIMIT 20
+    DB --> Job: orders_list
+    Job -> Cache: SETEX orders:new:page:1,\nTTL=60, orders_list
+else TTL >= 15 секунд
+    Job --> Job: ничего не делаем
+end
+
+== Запрос оператора ==
+Op -> UI: GET /orders?page=1
+UI -> API: GET /api/orders?page=1
+
+API -> Cache: GET orders:new:page:1
+alt cache hit
+    Cache --> API: orders_list
+    API --> UI: orders_list
+else cache miss
+    Cache --> API: null
+    API -> DB: SELECT * FROM orders\nWHERE status IN (...)\nORDER BY created_at\nLIMIT 20
+    DB --> API: orders_list
+    API -> Cache: SETEX orders:new:page:1,\nTTL=60, orders_list
+    API --> UI: orders_list
+end
+
+UI --> Op: Показать список заказов
+@enduml

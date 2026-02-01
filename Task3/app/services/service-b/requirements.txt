@@ -1,0 +1,6 @@
+Flask
+opentelemetry-api  #api otel
+opentelemetry-sdk #sdk otel
+opentelemetry-instrumentation-flask #framework instrumentation
+opentelemetry-exporter-jaeger-thrift
+Deprecated

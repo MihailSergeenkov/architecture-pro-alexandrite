@@ -1,0 +1,26 @@
+@startuml 3.1.2
+actor Operator as Op
+participant "MES UI" as UI
+participant "MES API" as API
+participant "Redis Cache" as Cache
+database "MES DB" as DB
+
+Op -> UI: GET /orders?status=PRICE_CALCULATED&page=1
+UI -> API: GET /api/orders?status=PRICE_CALCULATED&page=1
+
+API -> Cache: GET orders:PRICE_CALCULATED:page:1
+alt cache hit
+    Cache --> API: orders_list
+    API --> UI: orders_list
+else cache miss
+    Cache --> API: null
+
+    API -> DB: SELECT * FROM orders\nWHERE status='PRICE_CALCULATED'\nORDER BY created_at\nLIMIT 20 OFFSET 0
+    DB --> API: orders_list
+
+    API -> Cache: SETEX orders:PRICE_CALCULATED:page:1,\nTTL=60, orders_list
+    API --> UI: orders_list
+end
+
+UI --> Op: Показать список заказов
+@enduml

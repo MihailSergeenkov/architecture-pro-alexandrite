@@ -1,0 +1,30 @@
+@startuml 3.2.3
+actor Operator as Op
+participant "MES UI" as UI
+participant "MES API" as API
+database "MES DB" as DB
+queue "RabbitMQ" as MQ
+participant "Cache Worker" as Worker
+participant "Redis Cache" as Cache
+
+== Изменение статуса оператором ==
+Op -> UI: POST /orders/12345/status\nMANUFACTURING_STARTED
+UI -> API: POST /api/orders/12345/status\nMANUFACTURING_STARTED
+
+API -> DB: UPDATE orders\nSET status='MANUFACTURING_STARTED'\nWHERE id=12345
+DB --> API: OK
+
+API -> MQ: publish order_status_changed\n{order_id=12345,\nstatus_from=PRICE_CALCULATED,\nstatus_to=MANUFACTURING_STARTED}
+MQ --> API: ACK
+
+API --> UI: 200 OK
+UI --> Op: Статус обновлён
+
+== Асинхронная инвалидация кеша ==
+MQ -> Worker: order_status_changed\n{order_id=12345,...}
+Worker -> Cache: DEL orders:PRICE_CALCULATED:*
+Worker -> Cache: DEL orders:MANUFACTURING_STARTED:*
+Worker -> Cache: DEL orders:new:*
+Worker --> MQ: ACK
+
+@enduml
